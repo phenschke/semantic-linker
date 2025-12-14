@@ -65,9 +65,9 @@ class SimilarityIndex:
         """Load existing text hashes from ChromaDB metadata."""
         if self._collection.count() > 0:
             all_data = self._collection.get(include=["metadatas"])
-            self._hash_cache = {
+            self._hash_cache = { # type: ignore
                 m["_text_hash"] 
-                for m in all_data["metadatas"] 
+                for m in all_data["metadatas"]  # type: ignore
                 if m and "_text_hash" in m
             }
     
@@ -102,7 +102,11 @@ class SimilarityIndex:
         
         collection = client.get_or_create_collection(
             name=name,
-            metadata={"hnsw:space": "cosine"},
+            metadata={
+                "hnsw:space": "cosine",
+                "hnsw:batch_size": 100000,
+                "hnsw:sync_threshold": 100000,
+            }
         )
         
         return cls(collection, persist_path, name)
