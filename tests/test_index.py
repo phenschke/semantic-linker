@@ -165,8 +165,8 @@ class TestAddRecords:
         )
         
         assert len(results) == 1
-        assert results.iloc[0]["age"] == 30
-        assert results.iloc[0]["city"] == "NYC"
+        assert results.row(0, named=True)["age"] == 30
+        assert results.row(0, named=True)["city"] == "NYC"
     
     def test_add_empty_list(self, mock_embeddings):
         """Test adding empty list returns 0."""

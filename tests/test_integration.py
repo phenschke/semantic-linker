@@ -12,7 +12,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from semantic_linker import SimilarityIndex, dedupe, match
@@ -66,14 +66,14 @@ class TestEmbeddingsIntegration:
         )
 
         # Basic sanity checks: right shape and score range.
-        assert isinstance(results, pd.DataFrame)
+        assert isinstance(results, pl.DataFrame)
         assert len(results) == 4
         assert set(["query_id", "query_text", "target_id", "target_text", "similarity", "rank"]).issubset(
             results.columns
         )
         assert results["rank"].min() >= 1
         assert results["rank"].max() <= 4
-        assert results["similarity"].between(0.0, 1.0).all()
+        assert ((results["similarity"] >= 0.0) & (results["similarity"] <= 1.0)).all()
 
     def test_embed_batch_smoke(self):
         """Smoke test: batch embeddings path works (gemini-batch)."""
@@ -112,10 +112,10 @@ class TestMatchIntegration:
             top_k=2,
         )
 
-        assert isinstance(results, pd.DataFrame)
+        assert isinstance(results, pl.DataFrame)
         assert len(results) == 6  # 3 queries × 2 top_k
         assert set(["query_id", "target_id", "similarity", "rank"]).issubset(results.columns)
-        assert results["similarity"].between(0.0, 1.0).all()
+        assert ((results["similarity"] >= 0.0) & (results["similarity"] <= 1.0)).all()
 
     def test_match_with_threshold(self):
         """Smoke test: threshold filtering executes (non-strict assertions)."""
@@ -127,10 +127,10 @@ class TestMatchIntegration:
         )
 
         # Should find cat-related terms above threshold
-        assert isinstance(results, pd.DataFrame)
+        assert isinstance(results, pl.DataFrame)
         # All returned results should be >= threshold
         if len(results) > 0:
-            assert all(results["similarity"] >= 0.5)
+            assert (results["similarity"] >= 0.5).all()
 
 
 class TestDedupeIntegration:
@@ -150,11 +150,11 @@ class TestDedupeIntegration:
             threshold=0.7,
         )
 
-        assert isinstance(dupes, pd.DataFrame)
+        assert isinstance(dupes, pl.DataFrame)
         # May be empty depending on model behavior + threshold; just verify schema.
-        if not dupes.empty:
+        if len(dupes) > 0:
             assert set(["id_1", "text_1", "id_2", "text_2", "similarity"]).issubset(dupes.columns)
-            assert dupes["similarity"].between(0.0, 1.0).all()
+            assert ((dupes["similarity"] >= 0.0) & (dupes["similarity"] <= 1.0)).all()
 
     def test_dedupe_records_with_template(self):
         """Smoke test: dedupe() works for record dicts with embed_template."""
@@ -167,10 +167,10 @@ class TestDedupeIntegration:
             embed_template="German: {german}, English: {english}",
             threshold=0.8,
         )
-        assert isinstance(dupes, pd.DataFrame)
-        if not dupes.empty:
+        assert isinstance(dupes, pl.DataFrame)
+        if len(dupes) > 0:
             assert set(["id_1", "id_2", "similarity"]).issubset(dupes.columns)
-            assert dupes["similarity"].between(0.0, 1.0).all()
+            assert ((dupes["similarity"] >= 0.0) & (dupes["similarity"] <= 1.0)).all()
 
 
 class TestPersistentIndexIntegration:

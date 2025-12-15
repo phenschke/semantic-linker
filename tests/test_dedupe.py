@@ -4,7 +4,7 @@ import uuid
 from unittest.mock import patch
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from semantic_linker import SimilarityIndex, dedupe
@@ -64,8 +64,8 @@ class TestFindDuplicatesBasic:
         )
         
         dupes = index.find_duplicates(threshold=0.5)
-        
-        assert isinstance(dupes, pd.DataFrame)
+
+        assert isinstance(dupes, pl.DataFrame)
         assert "id_1" in dupes.columns
         assert "text_1" in dupes.columns
         assert "id_2" in dupes.columns
@@ -77,8 +77,8 @@ class TestFindDuplicatesBasic:
         index = SimilarityIndex.create(unique_name("empty"), persist_path=None)
         
         dupes = index.find_duplicates()
-        
-        assert isinstance(dupes, pd.DataFrame)
+
+        assert isinstance(dupes, pl.DataFrame)
         assert len(dupes) == 0
     
     def test_find_duplicates_single_record(self, mock_embeddings):
@@ -120,8 +120,8 @@ class TestFindDuplicatesThreshold:
         dupes_high = index.find_duplicates(threshold=0.99)
         
         # Both should be DataFrames
-        assert isinstance(dupes_low, pd.DataFrame)
-        assert isinstance(dupes_high, pd.DataFrame)
+        assert isinstance(dupes_low, pl.DataFrame)
+        assert isinstance(dupes_high, pl.DataFrame)
     
     def test_results_sorted_by_similarity(self, mock_embeddings):
         """Test that results are sorted by similarity descending."""
@@ -142,7 +142,7 @@ class TestFindDuplicatesThreshold:
         
         if len(dupes) > 1:
             # Check sorted in descending order
-            similarities = dupes["similarity"].tolist()
+            similarities = dupes["similarity"].to_list()
             assert similarities == sorted(similarities, reverse=True)
 
 
@@ -155,13 +155,13 @@ class TestDedupeConvenienceFunction:
             texts=["John Smith", "Jon Smith", "Jane Doe"],
             threshold=0.5,
         )
-        
-        assert isinstance(dupes, pd.DataFrame)
+
+        assert isinstance(dupes, pl.DataFrame)
         
         # Check auto-generated IDs
         if len(dupes) > 0:
-            assert dupes.iloc[0]["id_1"].startswith("r_")
-            assert dupes.iloc[0]["id_2"].startswith("r_")
+            assert dupes.row(0, named=True)["id_1"].startswith("r_")
+            assert dupes.row(0, named=True)["id_2"].startswith("r_")
     
     def test_dedupe_with_dicts(self, mock_embeddings):
         """Test dedupe with dict records."""
@@ -174,10 +174,11 @@ class TestDedupeConvenienceFunction:
             threshold=0.5,
         )
         
-        assert isinstance(dupes, pd.DataFrame)
-        
+        assert isinstance(dupes, pl.DataFrame)
+
         if len(dupes) > 0:
-            assert set([dupes.iloc[0]["id_1"], dupes.iloc[0]["id_2"]]) == {"a", "b"}
+            row = dupes.row(0, named=True)
+            assert set([row["id_1"], row["id_2"]]) == {"a", "b"}
     
     def test_dedupe_requires_template_for_dicts(self, mock_embeddings):
         """Test that dedupe raises error if template not provided for dicts."""
@@ -189,8 +190,8 @@ class TestDedupeConvenienceFunction:
     def test_dedupe_empty_list(self, mock_embeddings):
         """Test dedupe with empty list."""
         dupes = dedupe(texts=[], threshold=0.9)
-        
-        assert isinstance(dupes, pd.DataFrame)
+
+        assert isinstance(dupes, pl.DataFrame)
         assert len(dupes) == 0
 
 
@@ -211,9 +212,9 @@ class TestDuplicatePairStructure:
         )
         
         dupes = index.find_duplicates(threshold=0.0)
-        
+
         # No row should have id_1 == id_2
-        for _, row in dupes.iterrows():
+        for row in dupes.iter_rows(named=True):
             assert row["id_1"] != row["id_2"]
     
     def test_pairs_are_unique(self, mock_embeddings):
@@ -231,10 +232,10 @@ class TestDuplicatePairStructure:
         )
         
         dupes = index.find_duplicates(threshold=0.0)
-        
+
         # Check no duplicate pairs
         pairs = set()
-        for _, row in dupes.iterrows():
+        for row in dupes.iter_rows(named=True):
             pair = frozenset([row["id_1"], row["id_2"]])
             assert pair not in pairs
             pairs.add(pair)

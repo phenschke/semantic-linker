@@ -4,7 +4,7 @@ import uuid
 from unittest.mock import patch
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from semantic_linker import SimilarityIndex, match
@@ -65,7 +65,7 @@ class TestQueryBasic:
             top_k=3,
         )
         
-        assert isinstance(results, pd.DataFrame)
+        assert isinstance(results, pl.DataFrame)
         assert len(results) == 3
         assert "query_id" in results.columns
         assert "query_text" in results.columns
@@ -88,7 +88,7 @@ class TestQueryBasic:
             top_k=1,
         )
         
-        assert results.iloc[0]["query_id"] == "q_0"
+        assert results.row(0, named=True)["query_id"] == "q_0"
     
     def test_query_empty_index(self, mock_embeddings):
         """Test querying empty index returns empty DataFrame."""
@@ -98,8 +98,8 @@ class TestQueryBasic:
             records=[{"text": "test"}],
             embed_template="{text}",
         )
-        
-        assert isinstance(results, pd.DataFrame)
+
+        assert isinstance(results, pl.DataFrame)
         assert len(results) == 0
         assert "query_id" in results.columns
 
@@ -119,7 +119,7 @@ class TestQueryWithThreshold:
         
         # All results should have similarity >= threshold
         if len(results) > 0:
-            assert all(results["similarity"] >= 0.99)
+            assert (results["similarity"] >= 0.99).all()
     
     def test_query_threshold_none_returns_all(self, populated_index, mock_embeddings):
         """Test query with no threshold returns top_k results."""
@@ -162,8 +162,8 @@ class TestMatchConvenienceFunction:
             targets=["Johann Schmidt", "Jan Doe", "Bob"],
             top_k=2,
         )
-        
-        assert isinstance(results, pd.DataFrame)
+
+        assert isinstance(results, pl.DataFrame)
         assert len(results) == 4  # 2 queries × 2 top_k
         
         # Check auto-generated IDs
@@ -185,7 +185,7 @@ class TestMatchConvenienceFunction:
         )
         
         assert len(results) == 2
-        assert results.iloc[0]["query_id"] == "q1"
+        assert results.row(0, named=True)["query_id"] == "q1"
         assert set(results["target_id"]) == {"t1", "t2"}
     
     def test_match_requires_template_for_dicts(self, mock_embeddings):
@@ -207,7 +207,7 @@ class TestMatchConvenienceFunction:
         
         # All results should meet threshold
         if len(results) > 0:
-            assert all(results["similarity"] >= 0.99)
+            assert (results["similarity"] >= 0.99).all()
 
 
 class TestMultipleQueries:
@@ -226,10 +226,10 @@ class TestMultipleQueries:
         
         assert len(results) == 4  # 2 queries × 2 top_k
         assert set(results["query_id"]) == {"q1", "q2"}
-        
+
         # Each query should have ranks 1 and 2
-        q1_results = results[results["query_id"] == "q1"]
-        q2_results = results[results["query_id"] == "q2"]
-        
+        q1_results = results.filter(pl.col("query_id") == "q1")
+        q2_results = results.filter(pl.col("query_id") == "q2")
+
         assert list(q1_results["rank"]) == [1, 2]
         assert list(q2_results["rank"]) == [1, 2]

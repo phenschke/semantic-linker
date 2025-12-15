@@ -8,7 +8,7 @@ from typing import Any
 
 import chromadb
 import numpy as np
-import pandas as pd
+import polars as pl
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .embeddings import embed_texts
@@ -260,7 +260,7 @@ class SimilarityIndex:
         top_k: int = 5,
         threshold: float | None = None,
         force_batch: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Query the index for similar records.
         
         Args:
@@ -289,10 +289,16 @@ class SimilarityIndex:
             ... )
         """
         if self.count == 0:
-            return pd.DataFrame(columns=[
-                "query_id", "query_text", "target_id", "target_text", 
-                "similarity", "rank"
-            ])
+            return pl.DataFrame(
+                schema={
+                    "query_id": pl.String,
+                    "query_text": pl.String,
+                    "target_id": pl.String,
+                    "target_text": pl.String,
+                    "similarity": pl.Float64,
+                    "rank": pl.Int64,
+                }
+            )
         
         # Format query texts
         queries = []
@@ -342,14 +348,14 @@ class SimilarityIndex:
                     "rank": rank + 1,
                     **{k: v for k, v in metadata.items() if not k.startswith("_")},
                 })
-        
-        return pd.DataFrame(results)
+
+        return pl.DataFrame(results)
     
     def find_duplicates(
         self,
         threshold: float = 0.9,
         exclude_self: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Find duplicate records within the index.
         
         Args:
@@ -369,9 +375,15 @@ class SimilarityIndex:
             >>> print(dupes)
         """
         if self.count < 2:
-            return pd.DataFrame(columns=[
-                "id_1", "text_1", "id_2", "text_2", "similarity"
-            ])
+            return pl.DataFrame(
+                schema={
+                    "id_1": pl.String,
+                    "text_1": pl.String,
+                    "id_2": pl.String,
+                    "text_2": pl.String,
+                    "similarity": pl.Float64,
+                }
+            )
         
         # Get all embeddings
         all_data = self._collection.get(include=["embeddings", "metadatas"])
@@ -398,10 +410,10 @@ class SimilarityIndex:
                         "text_2": meta_j.get("_text", ""),
                         "similarity": sim,
                     })
-        
-        df = pd.DataFrame(results)
-        if not df.empty:
-            df = df.sort_values("similarity", ascending=False).reset_index(drop=True)
+
+        df = pl.DataFrame(results)
+        if len(df) > 0:
+            df = df.sort("similarity", descending=True)
         return df
     
     def delete(self, ids: list[str]) -> int:
@@ -444,7 +456,7 @@ def match(
     threshold: float | None = None,
     embed_template: str | None = None,
     id_field: str = "id",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Quick matching between two sets of records (ephemeral).
     
     Convenience function for one-off matching without creating a persistent index.
@@ -513,7 +525,7 @@ def dedupe(
     threshold: float = 0.9,
     embed_template: str | None = None,
     id_field: str = "id",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Quick deduplication of a set of records (ephemeral).
     
     Convenience function for one-off deduplication without creating a persistent index.
@@ -535,7 +547,15 @@ def dedupe(
     """
     # Handle empty list early
     if not texts:
-        return pd.DataFrame(columns=["id_1", "text_1", "id_2", "text_2", "similarity"])
+        return pl.DataFrame(
+            schema={
+                "id_1": pl.String,
+                "text_1": pl.String,
+                "id_2": pl.String,
+                "text_2": pl.String,
+                "similarity": pl.Float64,
+            }
+        )
     
     # Convert strings to dicts if needed
     if isinstance(texts[0], str):

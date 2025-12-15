@@ -120,11 +120,11 @@ index = SimilarityIndex.create(
 
 ```python
 from semantic_linker import SimilarityIndex
-import pandas as pd
+import polars as pl
 
 # Load census data
-census_1890 = pd.read_csv("census_1890.csv")
-census_1900 = pd.read_csv("census_1900.csv")
+census_1890 = pl.read_csv("census_1890.csv")
+census_1900 = pl.read_csv("census_1900.csv")
 
 # Create index for 1890 census
 index = SimilarityIndex.create("census_1890", persist_path="./census_data")
@@ -151,10 +151,10 @@ matches.to_csv("census_matches.csv", index=False)
 
 ```python
 from semantic_linker import SimilarityIndex
-import pandas as pd
+import polars as pl
 
 # Load occupations
-occs = pd.read_csv("occupations.csv")
+occs = pl.read_csv("occupations.csv")
 
 # Create index
 index = SimilarityIndex.create(
@@ -206,7 +206,7 @@ print(dupes)
 
 ## Output Format
 
-All query methods return a pandas DataFrame:
+All query methods return a Polars DataFrame:
 
 **Query Results:**
 | Column | Description |
@@ -241,7 +241,7 @@ export GEMINI_API_KEY="your-api-key"
 - `chromadb` - Vector storage
 - `gemini-batch` - Batch embedding API (50% cost savings)
 - `google-genai` - Google Generative AI client
-- `pandas` - DataFrame output
+- `polars` - DataFrame output
 - `numpy`, `scikit-learn` - Similarity computations
 
 ## Development
